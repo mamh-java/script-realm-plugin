@@ -126,7 +126,7 @@ public class ScriptSecurityRealm extends AbstractPasswordBasedSecurityRealm {
 	@Extension
 	public static final class DescriptorImpl extends Descriptor<SecurityRealm> {
 		public String getDisplayName() {
-			return "Authenticate via custom script";
+			return "ldap realm";
 		}
 	}
 
