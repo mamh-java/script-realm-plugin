@@ -31,6 +31,18 @@ import hudson.security.GroupDetails;
 import hudson.security.SecurityRealm;
 import hudson.util.QuotedStringTokenizer;
 import hudson.util.StreamTaskListener;
+import org.acegisecurity.AuthenticationException;
+import org.acegisecurity.AuthenticationServiceException;
+import org.acegisecurity.BadCredentialsException;
+import org.acegisecurity.GrantedAuthority;
+import org.acegisecurity.GrantedAuthorityImpl;
+import org.acegisecurity.userdetails.User;
+import org.acegisecurity.userdetails.UserDetails;
+import org.acegisecurity.userdetails.UsernameNotFoundException;
+import org.apache.commons.io.output.ByteArrayOutputStream;
+import org.apache.commons.lang.StringUtils;
+import org.kohsuke.stapler.DataBoundConstructor;
+import org.springframework.dao.DataAccessException;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -42,20 +54,6 @@ import java.util.Map;
 import java.util.StringTokenizer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
-import org.acegisecurity.AuthenticationException;
-import org.acegisecurity.AuthenticationServiceException;
-import org.acegisecurity.BadCredentialsException;
-import org.acegisecurity.GrantedAuthority;
-import org.acegisecurity.GrantedAuthorityImpl;
-import org.acegisecurity.userdetails.User;
-import org.acegisecurity.userdetails.UserDetails;
-import org.acegisecurity.userdetails.UsernameNotFoundException;
-import org.apache.commons.io.output.ByteArrayOutputStream;
-import org.apache.commons.io.output.NullOutputStream;
-import org.apache.commons.lang.StringUtils;
-import org.kohsuke.stapler.DataBoundConstructor;
-import org.springframework.dao.DataAccessException;
 
 /**
  * @author Kohsuke Kawaguchi
@@ -88,7 +86,18 @@ public class ScriptSecurityRealm extends AbstractPasswordBasedSecurityRealm {
 			if (isWindows()) {
 				overrides.put("SystemRoot", System.getenv("SystemRoot"));
 			}
-			if (launcher.launch().cmds(QuotedStringTokenizer.tokenize(commandLine)).stdout(new NullOutputStream()).envs(overrides).join() != 0) {
+			ByteArrayOutputStream baos = new ByteArrayOutputStream();
+			String[] cmds = QuotedStringTokenizer.tokenize(commandLine);
+			int extiCode = launcher
+					.launch()
+					.cmds(cmds)
+					.stdout(baos)
+					.envs(overrides)
+					.join();
+			String output = baos.toString("utf8");
+			LOGGER.log(Level.WARNING, "command execution output:\n" + output);
+
+			if (extiCode != 0) {
 				throw new BadCredentialsException(out.toString());
 			}
 			GrantedAuthority[] groups = loadGroups(username);
