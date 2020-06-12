@@ -1,8 +1,7 @@
-Script Realm plugin for Jenkins
+ldap Realm for Jenkins
 ===============================
 
-This Jenkins plugin allows you to use a user-written custom script to authenticate the username and password (also supports groups). 
-This is useful if you need to plug into a custom authentication scheme, but don't want to write your own plugin.
+轻量级ldap认证插件。
 
-find more at https://wiki.jenkins-ci.org/display/JENKINS/Script+Security+Realm
+之前使用的active-directory-plugin插件发现首次登陆非常慢，现在剥离出来一个简单的ldap认证登陆插件
 
