@@ -25,12 +25,15 @@ package hudson.plugins.ldap_realm;
 
 import hudson.Extension;
 import hudson.model.Descriptor;
+import hudson.model.User;
 import hudson.security.AbstractPasswordBasedSecurityRealm;
 import hudson.security.GroupDetails;
 import hudson.security.SecurityRealm;
+import hudson.tasks.MailAddressResolver;
+import jenkins.model.Jenkins;
+import org.acegisecurity.AcegiSecurityException;
 import org.acegisecurity.AuthenticationException;
 import org.acegisecurity.GrantedAuthority;
-import org.acegisecurity.userdetails.User;
 import org.acegisecurity.userdetails.UserDetails;
 import org.acegisecurity.userdetails.UsernameNotFoundException;
 import org.jfree.util.Log;
@@ -41,6 +44,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Logger;
 
+import static java.util.logging.Level.FINE;
+
 
 public class LdapSecurityRealm extends AbstractPasswordBasedSecurityRealm {
     private static final Logger LOGGER = Logger.getLogger(LdapSecurityRealm.class.getName());
@@ -49,38 +54,40 @@ public class LdapSecurityRealm extends AbstractPasswordBasedSecurityRealm {
 
     @DataBoundConstructor
     public LdapSecurityRealm(String server) {
-		this.server = server;
+        this.server = server;
     }
 
-	public String getServer() {
-		return server;
-	}
+    public String getServer() {
+        return server;
+    }
 
-	public void setServer(String server) {
-		this.server = server;
-	}
+    public void setServer(String server) {
+        this.server = server;
+    }
 
-	/**
+    /**
      * Authenticate a login attempt. 登陆核心方法
      * This method is the heart of a {@link AbstractPasswordBasedSecurityRealm}.
      */
     protected UserDetails authenticate(String username, String password) throws AuthenticationException {
-    	// 这个方法就是通过ldap人在，然后返回一个UserDetails实例对象
-		Log.info("this ldap server is: " + server);
-		GrantedAuthority[] groups = loadGroups(username);
-        LdapUserDetail user = new LdapUserDetail(username, "", true, true, true, true, groups, username, username);
+        // 这个方法就是通过ldap人在，然后返回一个UserDetails实例对象
+        Log.info("this ldap server is: " + server);
+        GrantedAuthority[] groups = loadGroups(username);
+        LdapUserDetail user = new LdapUserDetail(username, "", true, true, true, true, groups,
+                username + "@displayname", username + "@email");
         return user;
     }
 
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException, DataAccessException {
         GrantedAuthority[] groups = loadGroups(username);
-        return new User(username, "", true, true, true, true, groups);
+        return new LdapUserDetail(username, "", true, true, true, true, groups,
+                username + "@displayname", username + "@email");
     }
 
     @Override
     public GroupDetails loadGroupByGroupname(final String groupname) throws UsernameNotFoundException, DataAccessException {
-		LdapGroupDetail group = new LdapGroupDetail(groupname);
-		return group;
+        LdapGroupDetail group = new LdapGroupDetail(groupname);
+        return group;
     }
 
     @Extension
@@ -91,11 +98,41 @@ public class LdapSecurityRealm extends AbstractPasswordBasedSecurityRealm {
     }
 
     protected GrantedAuthority[] loadGroups(String username) throws AuthenticationException {
-		List<GrantedAuthority> authorities = new ArrayList<GrantedAuthority>();
-		authorities.add(AUTHENTICATED_AUTHORITY);
-		GrantedAuthority[] groups = authorities.toArray(new GrantedAuthority[0]);
+        List<GrantedAuthority> authorities = new ArrayList<GrantedAuthority>();
+        authorities.add(AUTHENTICATED_AUTHORITY);
+        GrantedAuthority[] groups = authorities.toArray(new GrantedAuthority[0]);
 
-		return groups;
+        return groups;
     }
+
+    /**
+     * If the security realm is Active Directory, try to pick up e-mail
+     * address from it.
+     */
+    @Extension
+    public static final class LdapMailResolver extends MailAddressResolver {
+        // 什么时候执行呢
+
+        public String findMailAddressFor(User u) {
+            SecurityRealm realm = Jenkins.get().getSecurityRealm();
+            if (!(realm instanceof LdapSecurityRealm)) {
+                return null;
+            }
+            try {
+                LdapUserDetail details = (LdapUserDetail) realm.getSecurityComponents().userDetails.loadUserByUsername(u.getId());
+                LOGGER.log(FINE, "Email address = '" + details.getMail() + "'");
+                return details.getMail();
+            } catch (DataAccessException e) {
+                LOGGER.log(FINE, "Failed to look Active Directory for e-mail address", e);
+                return null;
+            } catch (AcegiSecurityException e) {
+                LOGGER.log(FINE, "Failed to look up Active Directory for e-mail address", e);
+                return null;
+            }
+        }
+
+
+    }
+
 
 }
